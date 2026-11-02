@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#11110f">
+    <meta
+      name="description"
+      content="Manage the Afterburn Radio playlist and live broadcast."
+    >
+    <title>Control Room — Afterburn Radio</title>
+    <link rel="stylesheet" href="../admin.css">
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"
+    ></script>
+    <script defer src="../admin.js"></script>
+  </head>
+  <body>
+    <main class="admin-shell">
+      <header class="admin-header">
+        <a class="wordmark" href="../" aria-label="Afterburn Radio home">
+          <span class="wordmark-icon" aria-hidden="true">A</span>
+          <span>AFTERBURN<span class="wordmark-light">RADIO</span></span>
+        </a>
+        <span class="header-label">CONTROL ROOM</span>
+      </header>
+
+      <section class="page-heading" aria-labelledby="page-title">
+        <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> STATION MANAGEMENT</p>
+        <h1 id="page-title">Admin<span>.</span></h1>
+        <p>Manage the music rotation and take the station live.</p>
+      </section>
+
+      <div class="security-notice" role="note">
+        <strong>Admin access is not protected.</strong>
+        The radio server has no authentication. Anyone who can reach its API
+        can manage songs and interrupt the broadcast.
+      </div>
+
+      <p class="notice" id="page-status" role="status" aria-live="polite"></p>
+
+      <section class="panel live-panel" aria-labelledby="live-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">STATION-WIDE OVERRIDE</p>
+            <h2 id="live-title">Live broadcast</h2>
+          </div>
+          <span class="live-badge" id="live-badge">AUTO-DJ</span>
+        </div>
+        <p class="panel-description">
+          Your microphone will replace Auto-DJ for every listener until you end
+          the broadcast. Allow microphone access when prompted.
+        </p>
+        <div class="live-controls">
+          <button class="button button-live" id="live-start" type="button">
+            Start live broadcast
+          </button>
+          <button
+            class="button button-stop"
+            id="live-stop"
+            type="button"
+            hidden
+          >
+            End broadcast
+          </button>
+          <p class="live-status" id="live-status" role="status" aria-live="polite">
+            Microphone is off
+          </p>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="upload-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">ADD TO THE LIBRARY</p>
+            <h2 id="upload-title">Upload a track</h2>
+          </div>
+        </div>
+        <form class="upload-form" id="upload-form">
+          <label>
+            Track title
+            <input name="title" type="text" maxlength="160" placeholder="Song title">
+          </label>
+          <label>
+            Artist
+            <input name="author" type="text" maxlength="160" placeholder="Artist name">
+          </label>
+          <label class="file-field">
+            MP3 audio file
+            <input name="audio" type="file" accept=".mp3,audio/mpeg" required>
+          </label>
+          <button class="button button-primary" type="submit">Upload track</button>
+        </form>
+        <p class="field-hint">MP3 files only. Uploaded tracks are added to the rotation.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="queue-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">PLAY ORDER</p>
+            <h2 id="queue-title">Tracklist</h2>
+          </div>
+          <button class="button button-secondary" id="refresh-button" type="button">
+            Refresh
+          </button>
+        </div>
+        <p class="panel-description">
+          Move tracks to change the rotation. Removing a track here keeps it in
+          your library.
+        </p>
+        <ol class="track-list" id="queue-list" aria-label="Track rotation"></ol>
+        <p class="empty-state" id="queue-empty" hidden>No tracks in the rotation yet.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="library-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">ALL UPLOADED TRACKS</p>
+            <h2 id="library-title">Music library</h2>
+          </div>
+        </div>
+        <ul class="track-list library-list" id="library-list" aria-label="Music library"></ul>
+        <p class="empty-state" id="library-empty" hidden>The library is empty.</p>
+      </section>
+
+      <footer class="admin-footer">
+        <a href="../">← Back to Afterburn Radio</a>
+        <span>ONE STATION. ALL THE NOISE.</span>
+      </footer>
+    </main>
+
+    <dialog class="edit-dialog" id="edit-dialog" aria-labelledby="edit-title">
+      <form id="edit-form">
+        <p class="eyebrow">UPDATE TRACK DETAILS</p>
+        <h2 id="edit-title">Edit track</h2>
+        <label>
+          Track title
+          <input name="title" type="text" maxlength="160" required>
+        </label>
+        <label>
+          Artist
+          <input name="author" type="text" maxlength="160" required>
+        </label>
+        <div class="dialog-actions">
+          <button class="button button-secondary" id="edit-cancel" type="button">
+            Cancel
+          </button>
+          <button class="button button-primary" type="submit">Save changes</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>
