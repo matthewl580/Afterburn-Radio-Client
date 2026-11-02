@@ -1,5 +1,5 @@
 const STREAM_URL = "https://afterburn-radio-server.onrender.com/stream";
-const PLAYBACK_URL = "https://afterburn-radio-server.onrender.com/api/playback";
+const EVENTS_URL = "https://afterburn-radio-server.onrender.com/api/events";
 
 const audio = document.querySelector("#radio-audio");
 const playButton = document.querySelector("#play-button");
@@ -8,48 +8,25 @@ const playIcon = playButton.querySelector(".play-icon");
 let playbackRequest = 0;
 let currentStreamMode = null;
 
-function reconnectStreamForModeChange() {
-  const shouldResume = !audio.paused;
-  const request = ++playbackRequest;
-
-  audio.pause();
-  audio.src = STREAM_URL;
-  audio.load();
-
-  if (!shouldResume) return;
-
-  playerStatus.textContent = "Reconnecting to the live stream...";
-  audio.play().catch((error) => {
-    if (request !== playbackRequest) return;
-    if (error.name === "AbortError" && audio.paused) return;
-
-    playerStatus.textContent = `Unable to play: ${error.message}`;
-    console.error("Unable to resume the radio stream:", error);
-  });
+function updatePlayingStatus() {
+  playerStatus.textContent =
+    currentStreamMode === "LIVE" ? "Live broadcast" : "Now playing";
 }
 
-async function monitorStreamMode() {
+const playbackEvents = new EventSource(EVENTS_URL);
+playbackEvents.addEventListener("mode", (event) => {
   try {
-    const response = await fetch(PLAYBACK_URL, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`Playback status request failed (${response.status})`);
+    const state = JSON.parse(event.data);
+    if (state.mode !== "LIVE" && state.mode !== "AUTODJ") {
+      throw new Error("The radio server sent an invalid playback mode.");
     }
 
-    const playback = await response.json();
-    if (playback.mode !== "LIVE" && playback.mode !== "AUTODJ") {
-      throw new Error("The radio server returned an invalid playback mode.");
-    }
-
-    if (currentStreamMode !== null && playback.mode !== currentStreamMode) {
-      reconnectStreamForModeChange();
-    }
-    currentStreamMode = playback.mode;
+    currentStreamMode = state.mode;
+    if (!audio.paused) updatePlayingStatus();
   } catch (error) {
-    console.error("Could not check the radio broadcast status:", error);
-  } finally {
-    window.setTimeout(monitorStreamMode, 1000);
+    console.error("Could not read the radio broadcast status:", error);
   }
-}
+});
 
 audio.src = STREAM_URL;
 playButton.disabled = false;
@@ -76,7 +53,7 @@ playButton.addEventListener("click", async () => {
 });
 
 audio.addEventListener("playing", () => {
-  playerStatus.textContent = "Now playing";
+  updatePlayingStatus();
   playButton.classList.add("is-playing");
   playButton.setAttribute("aria-label", "Pause Afterburn Radio");
   playIcon.textContent = "Ⅱ";
@@ -91,7 +68,10 @@ audio.addEventListener("pause", () => {
 
 audio.addEventListener("waiting", () => {
   if (!audio.paused) {
-    playerStatus.textContent = "Buffering the radio stream...";
+    playerStatus.textContent =
+      currentStreamMode === "LIVE"
+        ? "Buffering the live broadcast..."
+        : "Buffering the radio stream...";
   }
 });
 
@@ -101,5 +81,3 @@ audio.addEventListener("error", () => {
   playButton.setAttribute("aria-label", "Play Afterburn Radio");
   playIcon.textContent = "▶";
 });
-
-void monitorStreamMode();
