@@ -1,5 +1,7 @@
 const API_BASE_URL = "https://afterburn-radio-server.onrender.com";
-const MP3_SAMPLE_RATE = 44100;
+const MP3_SAMPLE_RATES = new Set([
+  8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000,
+]);
 const MP3_BITRATE = 128;
 const MP3_CHUNK_SIZE = 8192;
 
@@ -516,12 +518,10 @@ async function startLiveBroadcast() {
       throw new Error("This browser does not support microphone audio processing.");
     }
 
-    audioContext = new AudioContextConstructor({
-      sampleRate: MP3_SAMPLE_RATE,
-    });
-    if (audioContext.sampleRate !== MP3_SAMPLE_RATE) {
+    audioContext = new AudioContextConstructor();
+    if (!MP3_SAMPLE_RATES.has(audioContext.sampleRate)) {
       throw new Error(
-        `This browser uses ${audioContext.sampleRate} Hz audio, which the live encoder does not support.`,
+        `This browser uses an unsupported ${audioContext.sampleRate} Hz audio rate.`,
       );
     }
     await audioContext.resume();
