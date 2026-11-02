@@ -7,10 +7,15 @@ const MP3_CHUNK_SIZE = 8192;
 const LIVE_FLUSH_INTERVAL_MS = 250;
 
 const pageStatus = document.querySelector("#page-status");
+const tracklistList = document.querySelector("#tracklist-list");
+const tracklistEmpty = document.querySelector("#tracklist-empty");
+const tracklistCount = document.querySelector("#tracklist-count");
 const queueList = document.querySelector("#queue-list");
 const queueEmpty = document.querySelector("#queue-empty");
+const queueCount = document.querySelector("#queue-count");
 const libraryList = document.querySelector("#library-list");
 const libraryEmpty = document.querySelector("#library-empty");
+const libraryCount = document.querySelector("#library-count");
 const uploadForm = document.querySelector("#upload-form");
 const refreshButton = document.querySelector("#refresh-button");
 const editDialog = document.querySelector("#edit-dialog");
@@ -21,6 +26,8 @@ const liveStatus = document.querySelector("#live-status");
 const liveBadge = document.querySelector("#live-badge");
 
 let songs = [];
+let tracklist = [];
+let tracklistIds = [];
 let queue = [];
 let editingSongId = null;
 let microphoneStream = null;
@@ -92,7 +99,7 @@ function makeTrackMeta(song) {
 
   const title = document.createElement("p");
   title.className = "track-title";
-  title.textContent = song.title || "Unknown Title";
+  title.textContent = song.title || song.name || "Unknown Title";
 
   const artist = document.createElement("p");
   artist.className = "track-artist";
@@ -105,6 +112,7 @@ function makeTrackMeta(song) {
 function renderQueue() {
   queueList.replaceChildren();
   queueEmpty.hidden = queue.length > 0;
+  queueCount.textContent = `(${queue.length})`;
 
   queue.forEach((song, index) => {
     const row = document.createElement("li");
@@ -121,14 +129,14 @@ function renderQueue() {
     actions.append(
       makeButton("↑", "icon-button", "move-up", {
         disabled: index === 0,
-        ariaLabel: `Move ${song.title} up`,
+        ariaLabel: `Move ${song.title || song.name} up`,
       }),
       makeButton("↓", "icon-button", "move-down", {
         disabled: index === queue.length - 1,
-        ariaLabel: `Move ${song.title} down`,
+        ariaLabel: `Move ${song.title || song.name} down`,
       }),
       makeButton("Remove", "icon-button", "remove-queue", {
-        ariaLabel: `Remove ${song.title} from rotation`,
+        ariaLabel: `Remove ${song.title || song.name} from the upcoming queue`,
       }),
     );
 
@@ -137,9 +145,38 @@ function renderQueue() {
   });
 }
 
+function renderTracklist() {
+  tracklistList.replaceChildren();
+  tracklistEmpty.hidden = tracklist.length > 0;
+  tracklistCount.textContent = `(${tracklist.length})`;
+
+  tracklist.forEach((song, index) => {
+    const row = document.createElement("li");
+    row.className = "track-row";
+    row.dataset.id = song.id;
+
+    const position = document.createElement("span");
+    position.className = "track-position";
+    position.textContent = String(index + 1).padStart(2, "0");
+    position.setAttribute("aria-label", `Tracklist position ${index + 1}`);
+
+    const actions = document.createElement("div");
+    actions.className = "track-actions";
+    actions.append(
+      makeButton("Remove", "icon-button", "remove-tracklist", {
+        ariaLabel: `Remove ${song.title || song.name} from the tracklist`,
+      }),
+    );
+
+    row.append(position, makeTrackMeta(song), actions);
+    tracklistList.append(row);
+  });
+}
+
 function renderLibrary() {
   libraryList.replaceChildren();
   libraryEmpty.hidden = songs.length > 0;
+  libraryCount.textContent = `(${songs.length})`;
 
   for (const song of songs) {
     const row = document.createElement("li");
@@ -149,12 +186,24 @@ function renderLibrary() {
     const meta = makeTrackMeta(song);
     const actions = document.createElement("div");
     actions.className = "track-actions";
+    const isInTracklist = tracklistIds.includes(song.id);
     actions.append(
+      makeButton(
+        isInTracklist ? "In tracklist" : "Add to tracklist",
+        "icon-button",
+        "add-tracklist",
+        {
+          disabled: isInTracklist,
+          ariaLabel: isInTracklist
+            ? `${song.title || song.name} is already in the tracklist`
+            : `Add ${song.title || song.name} to the tracklist`,
+        },
+      ),
       makeButton("Edit", "icon-button", "edit-song", {
-        ariaLabel: `Edit ${song.title}`,
+        ariaLabel: `Edit ${song.title || song.name}`,
       }),
       makeButton("Delete", "icon-button danger", "delete-song", {
-        ariaLabel: `Delete ${song.title}`,
+        ariaLabel: `Delete ${song.title || song.name}`,
       }),
     );
 
@@ -164,21 +213,31 @@ function renderLibrary() {
 }
 
 function renderAll() {
+  renderTracklist();
   renderQueue();
   renderLibrary();
 }
 
 async function loadLibrary() {
-  const [loadedSongs, loadedQueue] = await Promise.all([
+  const [loadedSongs, loadedTracklist, loadedQueue] = await Promise.all([
     apiRequest("/api/songs"),
+    apiRequest("/api/tracklist"),
     apiRequest("/api/queue"),
   ]);
 
-  if (!Array.isArray(loadedSongs) || !Array.isArray(loadedQueue)) {
-    throw new Error("The radio server returned an invalid tracklist.");
+  if (
+    !Array.isArray(loadedSongs) ||
+    !loadedTracklist ||
+    !Array.isArray(loadedTracklist.tracks) ||
+    !Array.isArray(loadedTracklist.trackIds) ||
+    !Array.isArray(loadedQueue)
+  ) {
+    throw new Error("The radio server returned an invalid library or tracklist.");
   }
 
   songs = loadedSongs;
+  tracklist = loadedTracklist.tracks;
+  tracklistIds = loadedTracklist.trackIds;
   queue = loadedQueue;
   renderAll();
 }
@@ -189,7 +248,7 @@ async function refreshLibrary() {
 
   try {
     await loadLibrary();
-    showPageStatus("Tracklist is up to date.");
+    showPageStatus("Library and tracklist are up to date.");
   } catch (error) {
     showPageStatus(error.message, true);
   } finally {
@@ -205,9 +264,24 @@ async function saveQueue(nextQueue) {
   });
 
   if (!result || !Array.isArray(result.queue)) {
-    throw new Error("The radio server did not confirm the tracklist update.");
+    throw new Error("The radio server did not confirm the upcoming queue update.");
   }
 
+  await loadLibrary();
+}
+
+async function updateTracklist(songId, action) {
+  if (action === "add-tracklist") {
+    await apiRequest("/api/tracklist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ songId }),
+    });
+  } else {
+    await apiRequest(`/api/tracklist/${encodeURIComponent(songId)}`, {
+      method: "DELETE",
+    });
+  }
   await loadLibrary();
 }
 
@@ -239,14 +313,31 @@ queueList.addEventListener("click", async (event) => {
   }
 
   button.disabled = true;
-  showPageStatus("Saving tracklist...");
+  showPageStatus("Saving upcoming queue...");
 
   try {
     await saveQueue(nextQueue);
-    showPageStatus("Tracklist updated.");
+    showPageStatus("Upcoming queue updated.");
   } catch (error) {
     renderQueue();
     showPageStatus(error.message, true);
+  }
+});
+
+tracklistList.addEventListener("click", async (event) => {
+  const button = event.target.closest('button[data-action="remove-tracklist"]');
+  const row = button && button.closest(".track-row");
+  if (!button || !row) return;
+
+  button.disabled = true;
+  showPageStatus("Removing track from the repeating tracklist...");
+
+  try {
+    await updateTracklist(row.dataset.id, "remove-tracklist");
+    showPageStatus("Track removed from the repeating tracklist.");
+  } catch (error) {
+    showPageStatus(error.message, true);
+    button.disabled = false;
   }
 });
 
@@ -276,7 +367,7 @@ uploadForm.addEventListener("submit", async (event) => {
     });
     uploadForm.reset();
     await loadLibrary();
-    showPageStatus("Track uploaded and added to the rotation.");
+    showPageStatus("Track uploaded and added to the library and tracklist.");
   } catch (error) {
     showPageStatus(error.message, true);
   } finally {
@@ -292,6 +383,20 @@ libraryList.addEventListener("click", async (event) => {
   const song = songs.find((item) => item.id === row.dataset.id);
   if (!song) return;
 
+  if (button.dataset.action === "add-tracklist") {
+    button.disabled = true;
+    showPageStatus(`Adding ${song.title || song.name} to the tracklist...`);
+
+    try {
+      await updateTracklist(song.id, "add-tracklist");
+      showPageStatus(`${song.title || song.name} added to the repeating tracklist.`);
+    } catch (error) {
+      showPageStatus(error.message, true);
+      button.disabled = false;
+    }
+    return;
+  }
+
   if (button.dataset.action === "edit-song") {
     editingSongId = song.id;
     editForm.elements.title.value = song.title || "";
@@ -303,7 +408,9 @@ libraryList.addEventListener("click", async (event) => {
 
   if (
     button.dataset.action !== "delete-song" ||
-    !window.confirm(`Permanently delete "${song.title}" from the music library?`)
+    !window.confirm(
+      `Permanently delete "${song.title || song.name}" from the music library?`,
+    )
   ) {
     return;
   }

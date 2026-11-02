@@ -95,29 +95,44 @@
         <p class="field-hint">MP3 files only. Uploaded tracks are added to the rotation.</p>
       </section>
 
+      <section class="panel" aria-labelledby="tracklist-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">REPEATING ROTATION</p>
+            <h2 id="tracklist-title">Tracklist <span id="tracklist-count"></span></h2>
+          </div>
+        </div>
+        <p class="panel-description">
+          Tracks in this list repeat in the Auto-DJ rotation. Add tracks from
+          the library below, or remove them here without deleting them.
+        </p>
+        <ol class="track-list" id="tracklist-list" aria-label="Repeating tracklist"></ol>
+        <p class="empty-state" id="tracklist-empty" hidden>No tracks selected. Add tracks from the library below.</p>
+      </section>
+
       <section class="panel" aria-labelledby="queue-title">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">PLAY ORDER</p>
-            <h2 id="queue-title">Tracklist</h2>
+            <p class="eyebrow">CURRENT PLAY ORDER</p>
+            <h2 id="queue-title">Upcoming queue <span id="queue-count"></span></h2>
           </div>
           <button class="button button-secondary" id="refresh-button" type="button">
             Refresh
           </button>
         </div>
         <p class="panel-description">
-          Move tracks to change the rotation. Removing a track here keeps it in
-          your library.
+          Reorder or remove tracks from the current queue. The server shuffles
+          the repeating tracklist again after this queue finishes.
         </p>
-        <ol class="track-list" id="queue-list" aria-label="Track rotation"></ol>
-        <p class="empty-state" id="queue-empty" hidden>No tracks in the rotation yet.</p>
+        <ol class="track-list" id="queue-list" aria-label="Upcoming queue"></ol>
+        <p class="empty-state" id="queue-empty" hidden>The upcoming queue is empty.</p>
       </section>
 
       <section class="panel" aria-labelledby="library-title">
         <div class="panel-heading">
           <div>
             <p class="eyebrow">ALL UPLOADED TRACKS</p>
-            <h2 id="library-title">Music library</h2>
+            <h2 id="library-title">Music library <span id="library-count"></span></h2>
           </div>
         </div>
         <ul class="track-list library-list" id="library-list" aria-label="Music library"></ul>
