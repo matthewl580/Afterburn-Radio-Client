@@ -18,7 +18,7 @@ function resumeLivePlayback() {
   if (!playbackRequested || !audio.paused) return;
 
   const request = ++playbackRequest;
-  playerStatus.textContent = "Reconnecting to the live broadcast...";
+  playerStatus.textContent = "Reconnecting to the radio stream...";
   audio.play().catch((error) => {
     if (request !== playbackRequest || !playbackRequested) return;
     if (error.name === "AbortError" && audio.paused) return;
@@ -81,7 +81,7 @@ audio.addEventListener("playing", () => {
 });
 
 audio.addEventListener("pause", () => {
-  if (playbackRequested && currentStreamMode === "LIVE") {
+  if (playbackRequested) {
     window.setTimeout(resumeLivePlayback, 0);
     return;
   }

@@ -45,6 +45,10 @@ let liveUploadError = null;
 let liveBroadcastStarted = false;
 let liveBroadcastId = null;
 let liveCapturing = false;
+let liveInputPeak = 0;
+let liveEncodedBytes = 0;
+let liveUploadedBytes = 0;
+let liveListenerCount = null;
 let liveActive = false;
 let stoppingLive = false;
 let liveFlushTimer = null;
@@ -679,7 +683,7 @@ function flushEncodedAudio() {
   liveUploadChain = liveUploadChain
     .then(async () => {
       if (liveUploadError) return;
-      await apiRequest("/api/live/chunk", {
+      const result = await apiRequest("/api/live/chunk", {
         method: "POST",
         headers: {
           "Content-Type": "audio/mpeg",
@@ -687,6 +691,11 @@ function flushEncodedAudio() {
         },
         body: new Blob([payload], { type: "audio/mpeg" }),
       });
+      liveUploadedBytes += payload.length;
+      liveListenerCount = Number.isInteger(result?.listeners)
+        ? result.listeners
+        : null;
+      updateLiveStatus();
     })
     .catch((error) => {
       liveUploadError = error;
@@ -696,6 +705,31 @@ function flushEncodedAudio() {
         if (liveActive) void stopLiveBroadcast();
       }, 0);
     });
+}
+
+function updateLiveStatus() {
+  if (!liveActive) return;
+
+  const formatBytes = (bytes) =>
+    bytes < 1024 ? `${bytes} bytes` : `${Math.round(bytes / 1024)} KB`;
+  const encodedStatus =
+    liveEncodedBytes > 0
+      ? `${formatBytes(liveEncodedBytes)} encoded`
+      : "waiting for encoded audio";
+  const listenerStatus =
+    liveListenerCount === null
+      ? ""
+      : liveListenerCount === 0
+        ? " No listeners connected."
+        : ` Reaching ${liveListenerCount} listener(s).`;
+  const inputStatus =
+    liveInputPeak < 0.003
+      ? " No microphone signal detected."
+      : ` Mic signal peak: ${Math.round(liveInputPeak * 100)}%.`;
+  liveStatus.textContent =
+    `On air — ${encodedStatus}; ${formatBytes(liveUploadedBytes)} relayed.` +
+    listenerStatus +
+    inputStatus;
 }
 
 function stopLiveFlushTimer() {
@@ -796,6 +830,10 @@ async function startLiveBroadcast() {
   liveUploadChain = Promise.resolve();
   pendingMp3Chunks = [];
   pendingMp3Bytes = 0;
+  liveInputPeak = 0;
+  liveEncodedBytes = 0;
+  liveUploadedBytes = 0;
+  liveListenerCount = null;
 
   try {
     if (!window.lamejs || !window.lamejs.Mp3Encoder) {
@@ -845,12 +883,17 @@ async function startLiveBroadcast() {
 
       const input = event.inputBuffer.getChannelData(0);
       const pcm = new Int16Array(input.length);
+      let inputPeak = 0;
       for (let index = 0; index < input.length; index += 1) {
         const sample = Math.max(-1, Math.min(1, input[index]));
+        inputPeak = Math.max(inputPeak, Math.abs(sample));
         pcm[index] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
       }
 
-      appendEncodedAudio(mp3Encoder.encodeBuffer(pcm));
+      liveInputPeak = inputPeak;
+      const encoded = mp3Encoder.encodeBuffer(pcm);
+      liveEncodedBytes += encoded.length;
+      appendEncodedAudio(encoded);
     };
 
     audioSource.connect(audioProcessor);
@@ -890,12 +933,12 @@ async function startLiveBroadcast() {
 
     flushEncodedAudio();
 
-    liveFlushTimer = window.setInterval(
-      flushEncodedAudio,
-      LIVE_FLUSH_INTERVAL_MS,
-    );
+    liveFlushTimer = window.setInterval(() => {
+      flushEncodedAudio();
+      updateLiveStatus();
+    }, LIVE_FLUSH_INTERVAL_MS);
     setLiveUi(true);
-    liveStatus.textContent = "Live — microphone audio is on air.";
+    updateLiveStatus();
   } catch (error) {
     console.error("Could not start live broadcast:", error);
     liveActive = false;
