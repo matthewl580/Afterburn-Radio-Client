@@ -34,6 +34,7 @@ let pendingMp3Bytes = 0;
 let liveUploadChain = Promise.resolve();
 let liveUploadError = null;
 let liveBroadcastStarted = false;
+let liveBroadcastId = null;
 let liveActive = false;
 let stoppingLive = false;
 let liveFlushTimer = null;
@@ -397,7 +398,10 @@ function flushEncodedAudio() {
       if (liveUploadError) return;
       await apiRequest("/api/live/chunk", {
         method: "POST",
-        headers: { "Content-Type": "audio/mpeg" },
+        headers: {
+          "Content-Type": "audio/mpeg",
+          "X-Broadcast-Id": liveBroadcastId,
+        },
         body: new Blob([payload], { type: "audio/mpeg" }),
       });
     })
@@ -478,15 +482,19 @@ async function stopLiveBroadcast() {
 
   if (liveBroadcastStarted) {
     try {
-      await apiRequest("/api/live/end", { method: "POST" });
+      await apiRequest("/api/live/end", {
+        method: "POST",
+        headers: { "X-Broadcast-Id": liveBroadcastId },
+      });
       liveBroadcastStarted = false;
+      liveBroadcastId = null;
     } catch (error) {
       stopError = stopError || error;
       console.error("Could not end the live broadcast:", error);
     }
   }
 
-  setLiveUi(false);
+  setLiveUi(liveBroadcastStarted);
   liveStopButton.disabled = false;
   stoppingLive = false;
   liveStatus.textContent = stopError
@@ -495,7 +503,7 @@ async function stopLiveBroadcast() {
 }
 
 async function startLiveBroadcast() {
-  if (liveActive || stoppingLive) return;
+  if (liveActive || liveBroadcastStarted || stoppingLive) return;
 
   liveStartButton.disabled = true;
   liveStatus.textContent = "Checking microphone and MP3 encoder...";
@@ -545,8 +553,16 @@ async function startLiveBroadcast() {
     mutedOutput = audioContext.createGain();
     mutedOutput.gain.value = 0;
 
+    const broadcast = await apiRequest("/api/live/start", { method: "POST" });
+    if (
+      !broadcast ||
+      typeof broadcast.broadcastId !== "string" ||
+      !broadcast.broadcastId
+    ) {
+      throw new Error("The radio server did not return a broadcast ID.");
+    }
+    liveBroadcastId = broadcast.broadcastId;
     liveBroadcastStarted = true;
-    await apiRequest("/api/live/start", { method: "POST" });
     liveActive = true;
     stoppingLive = false;
 
@@ -581,12 +597,16 @@ async function startLiveBroadcast() {
 
     if (liveBroadcastStarted) {
       try {
-        await apiRequest("/api/live/end", { method: "POST" });
+        await apiRequest("/api/live/end", {
+          method: "POST",
+          headers: { "X-Broadcast-Id": liveBroadcastId },
+        });
         liveBroadcastStarted = false;
+        liveBroadcastId = null;
       } catch (endError) {
         console.error("Could not restore Auto-DJ after start failure:", endError);
         liveStatus.textContent = `${error.message} Auto-DJ restart also failed: ${endError.message}`;
-        setLiveUi(false);
+        setLiveUi(liveBroadcastStarted);
         liveStartButton.disabled = false;
         return;
       }
@@ -607,6 +627,7 @@ window.addEventListener("pagehide", () => {
     void fetch(`${API_BASE_URL}/api/live/end`, {
       method: "POST",
       keepalive: true,
+      headers: { "X-Broadcast-Id": liveBroadcastId },
     }).catch((error) => {
       console.error("Could not stop the live broadcast on page exit:", error);
     });
