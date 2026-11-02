@@ -4,6 +4,7 @@ const MP3_SAMPLE_RATES = new Set([
 ]);
 const MP3_BITRATE = 128;
 const MP3_CHUNK_SIZE = 8192;
+const LIVE_FLUSH_INTERVAL_MS = 250;
 
 const pageStatus = document.querySelector("#page-status");
 const queueList = document.querySelector("#queue-list");
@@ -35,6 +36,7 @@ let liveUploadError = null;
 let liveBroadcastStarted = false;
 let liveActive = false;
 let stoppingLive = false;
+let liveFlushTimer = null;
 
 async function apiRequest(path, options = {}) {
   let response;
@@ -409,6 +411,12 @@ function flushEncodedAudio() {
     });
 }
 
+function stopLiveFlushTimer() {
+  if (liveFlushTimer === null) return;
+  window.clearInterval(liveFlushTimer);
+  liveFlushTimer = null;
+}
+
 function disconnectMicrophone() {
   if (audioProcessor) {
     audioProcessor.onaudioprocess = null;
@@ -445,6 +453,7 @@ async function stopLiveBroadcast() {
   if (stoppingLive || (!liveBroadcastStarted && !microphoneStream)) return;
   stoppingLive = true;
   liveActive = false;
+  stopLiveFlushTimer();
   liveStopButton.disabled = true;
   liveStatus.textContent = "Ending broadcast...";
 
@@ -558,11 +567,16 @@ async function startLiveBroadcast() {
     audioProcessor.connect(mutedOutput);
     mutedOutput.connect(audioContext.destination);
 
+    liveFlushTimer = window.setInterval(
+      flushEncodedAudio,
+      LIVE_FLUSH_INTERVAL_MS,
+    );
     setLiveUi(true);
     liveStatus.textContent = "Live — microphone audio is on air.";
   } catch (error) {
     console.error("Could not start live broadcast:", error);
     liveActive = false;
+    stopLiveFlushTimer();
     disconnectMicrophone();
 
     if (liveBroadcastStarted) {

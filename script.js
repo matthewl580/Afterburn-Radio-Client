@@ -1,10 +1,55 @@
 const STREAM_URL = "https://afterburn-radio-server.onrender.com/stream";
+const PLAYBACK_URL = "https://afterburn-radio-server.onrender.com/api/playback";
 
 const audio = document.querySelector("#radio-audio");
 const playButton = document.querySelector("#play-button");
 const playerStatus = document.querySelector("#player-status");
 const playIcon = playButton.querySelector(".play-icon");
 let playbackRequest = 0;
+let currentStreamMode = null;
+
+function reconnectStreamForModeChange() {
+  const shouldResume = !audio.paused;
+  const request = ++playbackRequest;
+
+  audio.pause();
+  audio.src = STREAM_URL;
+  audio.load();
+
+  if (!shouldResume) return;
+
+  playerStatus.textContent = "Reconnecting to the live stream...";
+  audio.play().catch((error) => {
+    if (request !== playbackRequest) return;
+    if (error.name === "AbortError" && audio.paused) return;
+
+    playerStatus.textContent = `Unable to play: ${error.message}`;
+    console.error("Unable to resume the radio stream:", error);
+  });
+}
+
+async function monitorStreamMode() {
+  try {
+    const response = await fetch(PLAYBACK_URL, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Playback status request failed (${response.status})`);
+    }
+
+    const playback = await response.json();
+    if (playback.mode !== "LIVE" && playback.mode !== "AUTODJ") {
+      throw new Error("The radio server returned an invalid playback mode.");
+    }
+
+    if (currentStreamMode !== null && playback.mode !== currentStreamMode) {
+      reconnectStreamForModeChange();
+    }
+    currentStreamMode = playback.mode;
+  } catch (error) {
+    console.error("Could not check the radio broadcast status:", error);
+  } finally {
+    window.setTimeout(monitorStreamMode, 1000);
+  }
+}
 
 audio.src = STREAM_URL;
 playButton.disabled = false;
@@ -56,3 +101,5 @@ audio.addEventListener("error", () => {
   playButton.setAttribute("aria-label", "Play Afterburn Radio");
   playIcon.textContent = "▶";
 });
+
+void monitorStreamMode();
