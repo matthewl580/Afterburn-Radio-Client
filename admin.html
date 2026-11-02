@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#11110f">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Station Admin — Afterburn Radio</title>
+    <link rel="stylesheet" href="/admin.css">
+    <script src="/vendor/lame.min.js" defer></script>
+    <script type="module" src="/admin.js"></script>
+  </head>
+  <body>
+    <main class="admin-shell">
+      <header class="admin-header">
+        <a class="wordmark" href="/" aria-label="Afterburn Radio home">
+          <span class="wordmark-icon" aria-hidden="true">A</span>
+          <span>AFTERBURN<span class="wordmark-light">RADIO</span></span>
+        </a>
+        <a class="back-link" href="/">← BACK TO SITE</a>
+      </header>
+
+      <section class="page-heading">
+        <p class="eyebrow"><span class="live-dot"></span> STATION CONTROL</p>
+        <h1>Admin<span>.</span></h1>
+      </section>
+
+      <section class="panel login-panel" id="login-panel" aria-labelledby="login-title">
+        <h2 id="login-title">Sign in</h2>
+        <p class="panel-description">Use your authorized station admin account.</p>
+        <form id="login-form" class="login-form">
+          <label>
+            Email
+            <input id="email" name="email" type="email" autocomplete="username" required disabled>
+          </label>
+          <label>
+            Password
+            <input id="password" name="password" type="password" autocomplete="current-password" required disabled>
+          </label>
+          <button class="button button-primary" type="submit" disabled>SIGN IN</button>
+        </form>
+        <p class="notice" id="login-notice" role="status" aria-live="polite"></p>
+      </section>
+
+      <div id="dashboard" hidden>
+        <div class="dashboard-top">
+          <p class="signed-in" id="signed-in"></p>
+          <button class="button button-quiet" id="sign-out" type="button">SIGN OUT</button>
+        </div>
+
+        <section class="panel live-panel" aria-labelledby="live-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">MICROPHONE OVERRIDE</p>
+              <h2 id="live-title">Live broadcast</h2>
+            </div>
+            <span class="mode-badge" id="mode-badge">AUTO-DJ</span>
+          </div>
+          <p class="panel-description">
+            Going live temporarily interrupts the Auto-DJ for every listener.
+            Allow microphone access when prompted.
+          </p>
+          <div class="live-controls">
+            <button class="button button-live" id="live-button" type="button">● START LIVE</button>
+            <span class="notice" id="live-notice" role="status" aria-live="polite"></span>
+          </div>
+        </section>
+
+        <section class="panel upload-panel" aria-labelledby="upload-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">ADD TO THE ROTATION</p>
+              <h2 id="upload-title">Upload a track</h2>
+            </div>
+          </div>
+          <form id="upload-form" class="upload-form">
+            <label>
+              Track title
+              <input id="track-title" name="title" maxlength="150" required>
+            </label>
+            <label>
+              Artist
+              <input id="track-author" name="author" maxlength="150" required>
+            </label>
+            <label class="file-field">
+              MP3 file
+              <input id="track-audio" name="audio" type="file" accept=".mp3,audio/mpeg" required>
+            </label>
+            <button class="button button-primary" type="submit">UPLOAD TRACK</button>
+          </form>
+          <p class="notice" id="upload-notice" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="panel track-panel" aria-labelledby="tracks-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">ONE STATION. YOUR ROTATION.</p>
+              <h2 id="tracks-title">Tracklist <span id="track-count">—</span></h2>
+            </div>
+            <button class="button button-quiet" id="refresh-tracks" type="button">REFRESH</button>
+          </div>
+          <p class="panel-description">Use the arrows to change the Auto-DJ order. Edits save per track.</p>
+          <p class="notice" id="tracks-notice" role="status" aria-live="polite"></p>
+          <ol class="track-list" id="track-list"></ol>
+        </section>
+      </div>
+
+      <footer class="admin-footer">
+        <span>AFTERBURN RADIO</span>
+        <span>ADMIN CONTROLS ARE ACCOUNT-PROTECTED</span>
+      </footer>
+    </main>
+  </body>
+</html>

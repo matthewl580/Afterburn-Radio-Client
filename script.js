@@ -1,4 +1,4 @@
-const STREAM_URL = "";
+const STREAM_URL = "/stream";
 
 const audio = document.querySelector("#radio-audio");
 const playButton = document.querySelector("#play-button");
