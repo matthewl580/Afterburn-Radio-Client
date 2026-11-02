@@ -381,6 +381,31 @@ h1 span {
   font-size: 12px;
 }
 
+.current-song {
+  min-width: 0;
+  margin-top: 12px;
+}
+
+.current-song-title,
+.current-song-author {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.current-song-title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.current-song-author {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .player-status {
   margin: 9px 0 0;
   color: var(--accent);

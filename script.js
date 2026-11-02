@@ -4,11 +4,64 @@ const EVENTS_URL = "https://afterburn-radio-server.onrender.com/api/events";
 const audio = document.querySelector("#radio-audio");
 const playButton = document.querySelector("#play-button");
 const playerStatus = document.querySelector("#player-status");
+const currentSongTitle = document.querySelector("#current-song-title");
+const currentSongAuthor = document.querySelector("#current-song-author");
 const playIcon = playButton.querySelector(".play-icon");
 let playbackRequest = 0;
 let currentStreamMode = null;
 let playbackRequested = false;
 let reconnectPending = false;
+let playbackInfoRequestPending = false;
+
+function renderCurrentSong(playback) {
+  currentStreamMode = playback.mode;
+
+  if (playback.mode === "LIVE") {
+    currentSongTitle.textContent = "Live broadcast";
+    currentSongAuthor.textContent = "Microphone transmission";
+    return;
+  }
+
+  if (!playback.song) {
+    currentSongTitle.textContent = "Waiting for the next track";
+    currentSongAuthor.textContent = "";
+    return;
+  }
+
+  currentSongTitle.textContent =
+    playback.song.title || playback.song.name || "Untitled track";
+  currentSongAuthor.textContent = playback.song.author || "Unknown artist";
+}
+
+async function refreshCurrentSong() {
+  if (playbackInfoRequestPending) return;
+  playbackInfoRequestPending = true;
+
+  try {
+    const response = await fetch(
+      "https://afterburn-radio-server.onrender.com/api/playback",
+      { cache: "no-store" },
+    );
+    if (!response.ok) {
+      throw new Error(`Playback request failed (${response.status})`);
+    }
+
+    const playback = await response.json();
+    if (
+      (playback.mode !== "LIVE" && playback.mode !== "AUTODJ") ||
+      (playback.song !== null && typeof playback.song !== "object")
+    ) {
+      throw new Error("The radio server returned invalid playback information.");
+    }
+    renderCurrentSong(playback);
+  } catch (error) {
+    currentSongTitle.textContent = "Track information unavailable";
+    currentSongAuthor.textContent = "";
+    console.error("Could not load the current track:", error);
+  } finally {
+    playbackInfoRequestPending = false;
+  }
+}
 
 function updatePlayingStatus() {
   playerStatus.textContent =
@@ -53,6 +106,7 @@ playbackEvents.addEventListener("mode", (event) => {
 
     const previousMode = currentStreamMode;
     currentStreamMode = state.mode;
+    void refreshCurrentSong();
     if (
       playbackRequested &&
       state.mode === "LIVE" &&
@@ -68,6 +122,12 @@ playbackEvents.addEventListener("mode", (event) => {
     console.error("Could not read the radio broadcast status:", error);
   }
 });
+playbackEvents.addEventListener("playback", () => {
+  void refreshCurrentSong();
+});
+
+void refreshCurrentSong();
+window.setInterval(refreshCurrentSong, 5000);
 
 audio.src = STREAM_URL;
 playButton.disabled = false;
