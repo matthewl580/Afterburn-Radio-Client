@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#11110f" />
+    <meta
+      name="description"
+      content="Tune in to Afterburn Radio. Independent radio, turned up."
+    />
+    <title>Afterburn Radio — Turn it up</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="site-header">
+        <a
+          class="wordmark font-hitchman"
+          href="#home"
+          aria-label="Afterburn Radio home"
+        >
+          <span class="wordmark-icon" aria-hidden="true">A</span>
+          <span>AFTERBURN<span class="wordmark-light">RADIO</span></span>
+        </a>
+        <a class="header-link" href="#listen"
+          >LISTEN LIVE <span aria-hidden="true">↘</span></a
+        >
+      </header>
+
+      <section class="hero" id="home" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">
+            <span class="eyebrow-dot" aria-hidden="true"></span> INDEPENDENT
+            RADIO
+          </p>
+          <h1 id="hero-title" class="font-frijole">
+            Turn it <span>up!</span>
+          </h1>
+          <p class="hero-description">
+            Pop-punk hooks, heavy riffs, and everything loud in between.
+            Find your frequency with Afterburn Radio.
+          </p>
+          <a class="listen-link" href="#listen">
+            <span class="listen-link-icon" aria-hidden="true">↓</span>
+            FIND YOUR FREQUENCY
+          </a>
+        </div>
+
+        <div class="artwork" aria-hidden="true">
+          <div class="artwork-disc">
+            <div class="artwork-sun"></div>
+            <div class="artwork-ring artwork-ring-one"></div>
+            <div class="artwork-ring artwork-ring-two"></div>
+            <div class="artwork-line"></div>
+            <span class="artwork-label">AB<br />FM</span>
+          </div>
+          <span class="artwork-caption">SOUND IN MOTION — EST. ALWAYS</span>
+        </div>
+
+        <div class="hero-index" aria-hidden="true">01 <span>—</span> 01</div>
+      </section>
+
+      <section
+        class="player-section"
+        id="listen"
+        aria-labelledby="player-title"
+      >
+        <div class="player-heading">
+          <p class="eyebrow">YOUR NEXT FAVORITE SOUND</p>
+          <h2 id="player-title">On air<span>.</span></h2>
+        </div>
+
+        <div class="player-card">
+          <div class="station-art" aria-hidden="true">
+            <span>A<span>R</span></span>
+            <i></i>
+          </div>
+          <div class="station-info">
+            <p class="station-name">AFTERBURN RADIO</p>
+            <p class="station-tagline">Independent radio, turned up.</p>
+            <p
+              class="player-status"
+              id="player-status"
+              role="status"
+              aria-live="polite"
+            >
+              Stream not configured
+            </p>
+          </div>
+          <button
+            class="play-button"
+            id="play-button"
+            type="button"
+            aria-label="Play Afterburn Radio"
+          >
+            <span class="play-icon" aria-hidden="true">▶</span>
+          </button>
+        </div>
+        <audio id="radio-audio" preload="none"></audio>
+      </section>
+
+      <footer class="site-footer">
+        <span>AFTERBURN RADIO</span>
+        <span>LOUD MUSIC. NO APOLOGIES.</span>
+        <a href="#home">BACK TO TOP ↑</a>
+      </footer>
+    </main>
+  </body>
+</html>
