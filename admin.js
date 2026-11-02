@@ -1,7 +1,5 @@
 const API_BASE_URL = "https://afterburn-radio-server.onrender.com";
-const MP3_SAMPLE_RATES = new Set([
-  8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000,
-]);
+const MP3_SAMPLE_RATE = 44100;
 const MP3_BITRATE = 128;
 const MP3_CHUNK_SIZE = 8192;
 const LIVE_FLUSH_INTERVAL_MS = 250;
@@ -46,6 +44,7 @@ let liveUploadChain = Promise.resolve();
 let liveUploadError = null;
 let liveBroadcastStarted = false;
 let liveBroadcastId = null;
+let liveCapturing = false;
 let liveActive = false;
 let stoppingLive = false;
 let liveFlushTimer = null;
@@ -659,13 +658,13 @@ function appendEncodedAudio(bytes) {
   pendingMp3Chunks.push(copy);
   pendingMp3Bytes += copy.length;
 
-  if (pendingMp3Bytes >= MP3_CHUNK_SIZE) {
+  if (liveBroadcastStarted && pendingMp3Bytes >= MP3_CHUNK_SIZE) {
     flushEncodedAudio();
   }
 }
 
 function flushEncodedAudio() {
-  if (pendingMp3Bytes === 0) return;
+  if (!liveBroadcastStarted || !liveBroadcastId || pendingMp3Bytes === 0) return;
 
   const payload = new Uint8Array(pendingMp3Bytes);
   let offset = 0;
@@ -706,6 +705,7 @@ function stopLiveFlushTimer() {
 }
 
 function disconnectMicrophone() {
+  liveCapturing = false;
   if (audioProcessor) {
     audioProcessor.onaudioprocess = null;
     audioProcessor.disconnect();
@@ -741,6 +741,7 @@ async function stopLiveBroadcast() {
   if (stoppingLive || (!liveBroadcastStarted && !microphoneStream)) return;
   stoppingLive = true;
   liveActive = false;
+  liveCapturing = false;
   stopLiveFlushTimer();
   liveStopButton.disabled = true;
   liveStatus.textContent = "Ending broadcast...";
@@ -819,10 +820,12 @@ async function startLiveBroadcast() {
       throw new Error("This browser does not support microphone audio processing.");
     }
 
-    audioContext = new AudioContextConstructor();
-    if (!MP3_SAMPLE_RATES.has(audioContext.sampleRate)) {
+    audioContext = new AudioContextConstructor({
+      sampleRate: MP3_SAMPLE_RATE,
+    });
+    if (audioContext.sampleRate !== MP3_SAMPLE_RATE) {
       throw new Error(
-        `This browser uses an unsupported ${audioContext.sampleRate} Hz audio rate.`,
+        `This browser uses ${audioContext.sampleRate} Hz audio; the station requires ${MP3_SAMPLE_RATE} Hz.`,
       );
     }
     await audioContext.resume();
@@ -837,21 +840,8 @@ async function startLiveBroadcast() {
     mutedOutput = audioContext.createGain();
     mutedOutput.gain.value = 0;
 
-    const broadcast = await apiRequest("/api/live/start", { method: "POST" });
-    if (
-      !broadcast ||
-      typeof broadcast.broadcastId !== "string" ||
-      !broadcast.broadcastId
-    ) {
-      throw new Error("The radio server did not return a broadcast ID.");
-    }
-    liveBroadcastId = broadcast.broadcastId;
-    liveBroadcastStarted = true;
-    liveActive = true;
-    stoppingLive = false;
-
     audioProcessor.onaudioprocess = (event) => {
-      if (!liveActive || liveUploadError) return;
+      if (!liveCapturing || liveUploadError) return;
 
       const input = event.inputBuffer.getChannelData(0);
       const pcm = new Int16Array(input.length);
@@ -866,6 +856,39 @@ async function startLiveBroadcast() {
     audioSource.connect(audioProcessor);
     audioProcessor.connect(mutedOutput);
     mutedOutput.connect(audioContext.destination);
+    liveCapturing = true;
+
+    const broadcast = await apiRequest("/api/live/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mimeType: "audio/mpeg",
+        channels: 1,
+        sampleRate: audioContext.sampleRate,
+        bitrate: MP3_BITRATE * 1000,
+      }),
+    });
+    if (
+      !broadcast ||
+      typeof broadcast.broadcastId !== "string" ||
+      !broadcast.broadcastId
+    ) {
+      throw new Error("The radio server did not return a broadcast ID.");
+    }
+    liveBroadcastId = broadcast.broadcastId;
+    liveBroadcastStarted = true;
+    if (
+      broadcast.audioFormat?.sampleRate &&
+      broadcast.audioFormat.sampleRate !== audioContext.sampleRate
+    ) {
+      throw new Error(
+        `The server expects ${broadcast.audioFormat.sampleRate} Hz audio, but the encoder is using ${audioContext.sampleRate} Hz.`,
+      );
+    }
+    liveActive = true;
+    stoppingLive = false;
+
+    flushEncodedAudio();
 
     liveFlushTimer = window.setInterval(
       flushEncodedAudio,

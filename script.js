@@ -7,10 +7,25 @@ const playerStatus = document.querySelector("#player-status");
 const playIcon = playButton.querySelector(".play-icon");
 let playbackRequest = 0;
 let currentStreamMode = null;
+let playbackRequested = false;
 
 function updatePlayingStatus() {
   playerStatus.textContent =
     currentStreamMode === "LIVE" ? "Live broadcast" : "Now playing";
+}
+
+function resumeLivePlayback() {
+  if (!playbackRequested || !audio.paused) return;
+
+  const request = ++playbackRequest;
+  playerStatus.textContent = "Reconnecting to the live broadcast...";
+  audio.play().catch((error) => {
+    if (request !== playbackRequest || !playbackRequested) return;
+    if (error.name === "AbortError" && audio.paused) return;
+
+    playerStatus.textContent = `Unable to play the radio stream: ${error.message}`;
+    console.error("Unable to resume the live radio stream:", error);
+  });
 }
 
 const playbackEvents = new EventSource(EVENTS_URL);
@@ -22,7 +37,11 @@ playbackEvents.addEventListener("mode", (event) => {
     }
 
     currentStreamMode = state.mode;
-    if (!audio.paused) updatePlayingStatus();
+    if (playbackRequested && audio.paused) {
+      resumeLivePlayback();
+    } else if (!audio.paused) {
+      updatePlayingStatus();
+    }
   } catch (error) {
     console.error("Could not read the radio broadcast status:", error);
   }
@@ -36,6 +55,7 @@ playButton.addEventListener("click", async () => {
   const request = ++playbackRequest;
 
   if (audio.paused) {
+    playbackRequested = true;
     playerStatus.textContent = "Connecting...";
 
     try {
@@ -48,6 +68,7 @@ playButton.addEventListener("click", async () => {
       console.error("Unable to play the radio stream:", error);
     }
   } else {
+    playbackRequested = false;
     audio.pause();
   }
 });
@@ -60,6 +81,11 @@ audio.addEventListener("playing", () => {
 });
 
 audio.addEventListener("pause", () => {
+  if (playbackRequested && currentStreamMode === "LIVE") {
+    window.setTimeout(resumeLivePlayback, 0);
+    return;
+  }
+
   playerStatus.textContent = "Paused";
   playButton.classList.remove("is-playing");
   playButton.setAttribute("aria-label", "Play Afterburn Radio");
