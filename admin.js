@@ -21,6 +21,7 @@ const editForm = document.querySelector("#edit-form");
 const liveStartButton = document.querySelector("#live-start");
 const liveStopButton = document.querySelector("#live-stop");
 const liveStatus = document.querySelector("#live-status");
+const liveAudioInput = document.querySelector("#live-audio-input");
 const liveBadge = document.querySelector("#live-badge");
 const currentTrackTitle = document.querySelector("#current-track-title");
 const currentTrackArtist = document.querySelector("#current-track-artist");
@@ -724,12 +725,38 @@ function updateLiveStatus() {
         : ` Reaching ${liveListenerCount} listener(s).`;
   const inputStatus =
     liveInputPeak < 0.003
-      ? " No microphone signal detected."
+      ? " No microphone signal detected; try another input and restart."
       : ` Mic signal peak: ${Math.round(liveInputPeak * 100)}%.`;
   liveStatus.textContent =
     `On air — ${encodedStatus}; ${formatBytes(liveUploadedBytes)} relayed.` +
     listenerStatus +
     inputStatus;
+}
+
+async function refreshMicrophoneInputs() {
+  if (!navigator.mediaDevices.enumerateDevices) return;
+
+  const selectedDeviceId = liveAudioInput.value;
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const audioInputs = devices.filter((device) => device.kind === "audioinput");
+  liveAudioInput.replaceChildren();
+
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = "Default microphone";
+  liveAudioInput.append(defaultOption);
+
+  audioInputs.forEach((device, index) => {
+    if (!device.deviceId) return;
+    const option = document.createElement("option");
+    option.value = device.deviceId;
+    option.textContent = device.label || `Microphone ${index + 1}`;
+    liveAudioInput.append(option);
+  });
+
+  if (audioInputs.some((device) => device.deviceId === selectedDeviceId)) {
+    liveAudioInput.value = selectedDeviceId;
+  }
 }
 
 function stopLiveFlushTimer() {
@@ -767,6 +794,7 @@ function disconnectMicrophone() {
 function setLiveUi(isLive) {
   liveStartButton.hidden = isLive;
   liveStopButton.hidden = !isLive;
+  liveAudioInput.disabled = isLive;
   liveBadge.textContent = isLive ? "LIVE" : "AUTO-DJ";
   liveBadge.classList.toggle("is-live", isLive);
 }
@@ -825,6 +853,7 @@ async function startLiveBroadcast() {
   if (liveActive || liveBroadcastStarted || stoppingLive) return;
 
   liveStartButton.disabled = true;
+  liveAudioInput.disabled = true;
   liveStatus.textContent = "Checking microphone and MP3 encoder...";
   liveUploadError = null;
   liveUploadChain = Promise.resolve();
@@ -843,14 +872,23 @@ async function startLiveBroadcast() {
       throw new Error("Microphone access requires a supported browser on HTTPS or localhost.");
     }
 
+    const audioConstraints = {
+      channelCount: 1,
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    };
+    if (liveAudioInput.value) {
+      audioConstraints.deviceId = { exact: liveAudioInput.value };
+    }
     microphoneStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        channelCount: 1,
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-      },
+      audio: audioConstraints,
     });
+    try {
+      await refreshMicrophoneInputs();
+    } catch (error) {
+      console.error("Could not list microphone inputs:", error);
+    }
 
     const AudioContextConstructor =
       window.AudioContext || window.webkitAudioContext;
@@ -966,6 +1004,7 @@ async function startLiveBroadcast() {
     setLiveUi(false);
   } finally {
     liveStartButton.disabled = false;
+    liveAudioInput.disabled = liveBroadcastStarted;
   }
 }
 

@@ -234,6 +234,20 @@ h1 span {
   gap: 12px;
 }
 
+.live-input-control {
+  min-width: 190px;
+}
+
+.live-input-control select {
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: #141412;
+  color: var(--text);
+  font-size: 12px;
+}
+
 .current-track-controls {
   display: flex;
   flex-wrap: wrap;
@@ -346,6 +360,7 @@ input::placeholder {
 }
 
 input:focus-visible,
+select:focus-visible,
 button:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--accent);

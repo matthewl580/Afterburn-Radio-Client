@@ -8,24 +8,39 @@ const playIcon = playButton.querySelector(".play-icon");
 let playbackRequest = 0;
 let currentStreamMode = null;
 let playbackRequested = false;
+let reconnectPending = false;
 
 function updatePlayingStatus() {
   playerStatus.textContent =
     currentStreamMode === "LIVE" ? "Live broadcast" : "Now playing";
 }
 
-function resumeLivePlayback() {
-  if (!playbackRequested || !audio.paused) return;
+function resumeLivePlayback(forceReconnect = false) {
+  if (
+    !playbackRequested ||
+    (!forceReconnect && !audio.paused) ||
+    reconnectPending
+  ) {
+    return;
+  }
 
+  reconnectPending = true;
   const request = ++playbackRequest;
   playerStatus.textContent = "Reconnecting to the radio stream...";
-  audio.play().catch((error) => {
-    if (request !== playbackRequest || !playbackRequested) return;
-    if (error.name === "AbortError" && audio.paused) return;
+  audio.src = `${STREAM_URL}?reconnect=${Date.now()}`;
+  audio.load();
+  audio.play()
+    .then(() => {
+      if (request === playbackRequest) reconnectPending = false;
+    })
+    .catch((error) => {
+      if (request !== playbackRequest || !playbackRequested) return;
+      reconnectPending = false;
+      if (error.name === "AbortError" && audio.paused) return;
 
-    playerStatus.textContent = `Unable to play the radio stream: ${error.message}`;
-    console.error("Unable to resume the live radio stream:", error);
-  });
+      playerStatus.textContent = `Unable to play the radio stream: ${error.message}`;
+      console.error("Unable to resume the live radio stream:", error);
+    });
 }
 
 const playbackEvents = new EventSource(EVENTS_URL);
@@ -36,8 +51,15 @@ playbackEvents.addEventListener("mode", (event) => {
       throw new Error("The radio server sent an invalid playback mode.");
     }
 
+    const previousMode = currentStreamMode;
     currentStreamMode = state.mode;
-    if (playbackRequested && audio.paused) {
+    if (
+      playbackRequested &&
+      state.mode === "LIVE" &&
+      previousMode !== "LIVE"
+    ) {
+      resumeLivePlayback(true);
+    } else if (playbackRequested && audio.paused) {
       resumeLivePlayback();
     } else if (!audio.paused) {
       updatePlayingStatus();
@@ -69,11 +91,13 @@ playButton.addEventListener("click", async () => {
     }
   } else {
     playbackRequested = false;
+    reconnectPending = false;
     audio.pause();
   }
 });
 
 audio.addEventListener("playing", () => {
+  reconnectPending = false;
   updatePlayingStatus();
   playButton.classList.add("is-playing");
   playButton.setAttribute("aria-label", "Pause Afterburn Radio");
