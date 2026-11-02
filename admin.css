@@ -234,6 +234,18 @@ h1 span {
   gap: 12px;
 }
 
+.current-track-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.current-track-controls .track-artist {
+  margin-bottom: 0;
+}
+
 .live-status,
 .field-hint {
   margin: 0;

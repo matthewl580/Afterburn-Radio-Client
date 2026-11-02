@@ -24,6 +24,10 @@ const liveStartButton = document.querySelector("#live-start");
 const liveStopButton = document.querySelector("#live-stop");
 const liveStatus = document.querySelector("#live-status");
 const liveBadge = document.querySelector("#live-badge");
+const currentTrackTitle = document.querySelector("#current-track-title");
+const currentTrackArtist = document.querySelector("#current-track-artist");
+const skipTrackButton = document.querySelector("#skip-track-button");
+const skipStatus = document.querySelector("#skip-status");
 
 let songs = [];
 let tracklist = [];
@@ -45,6 +49,11 @@ let liveBroadcastId = null;
 let liveActive = false;
 let stoppingLive = false;
 let liveFlushTimer = null;
+let playbackMode = null;
+let currentPlaybackPosition = 0;
+let currentPlaybackSong = null;
+let skipPending = false;
+let skipPendingSongId = null;
 
 async function apiRequest(path, options = {}) {
   let response;
@@ -81,6 +90,174 @@ function showPageStatus(message, isError = false) {
   pageStatus.textContent = message;
   pageStatus.classList.toggle("is-error", isError);
 }
+
+function updateSkipButton() {
+  skipTrackButton.disabled =
+    !currentPlaybackSong || playbackMode === "LIVE" || skipPending;
+}
+
+function renderCurrentPlayback(playback) {
+  currentPlaybackSong = playback.song;
+  currentPlaybackPosition = Number(playback.positionSeconds) || 0;
+  currentTrackTitle.textContent = playback.song
+    ? playback.song.title || playback.song.name || "Unknown Title"
+    : "No track currently playing";
+  currentTrackArtist.textContent = playback.song?.author || "";
+  updateSkipButton();
+}
+
+async function fetchPlayback() {
+  const playback = await apiRequest("/api/playback");
+  if (!playback || (playback.mode !== "LIVE" && playback.mode !== "AUTODJ")) {
+    throw new Error("The radio server returned an invalid playback state.");
+  }
+  if (playbackMode === null) playbackMode = playback.mode;
+  updateSkipButton();
+  return playback;
+}
+
+async function refreshCurrentTrackAfterSkip(skippedSongId, nextSongId) {
+  const maxAttempts = 20;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+    const playback = await fetchPlayback();
+    const song = playback.song;
+    const hasAdvanced =
+      song &&
+      (song.id !== skippedSongId ||
+        nextSongId === skippedSongId ||
+        !nextSongId ||
+        Number(playback.positionSeconds) < currentPlaybackPosition);
+
+    if (hasAdvanced) {
+      renderCurrentPlayback(playback);
+      return;
+    }
+
+    if (!song && !nextSongId && attempt > 0) {
+      renderCurrentPlayback(playback);
+      return;
+    }
+  }
+
+  throw new Error("The server confirmed the skip, but the next track has not started yet.");
+}
+
+function connectPlaybackEvents() {
+  const events = new EventSource(`${API_BASE_URL}/api/events`);
+
+  events.addEventListener("mode", (event) => {
+    try {
+      const state = JSON.parse(event.data);
+      if (state.mode !== "LIVE" && state.mode !== "AUTODJ") {
+        throw new Error("The radio server sent an invalid playback mode.");
+      }
+      playbackMode = state.mode;
+      updateSkipButton();
+      if (state.mode === "LIVE") {
+        skipStatus.textContent = "Skipping is unavailable during a live broadcast.";
+      } else if (!skipPending) {
+        skipStatus.textContent = "";
+      }
+    } catch (error) {
+      console.error("Could not read the playback mode event:", error);
+    }
+  });
+
+  events.addEventListener("playback", (event) => {
+    let update;
+    try {
+      update = JSON.parse(event.data);
+    } catch (error) {
+      console.error("Could not read the playback event:", error);
+      return;
+    }
+
+    if (update.type !== "track_skipped") return;
+    if (
+      typeof update.songId !== "string" ||
+      (update.nextSongId !== null && typeof update.nextSongId !== "string")
+    ) {
+      console.error("The server sent an invalid track-skipped event.");
+      return;
+    }
+
+    const confirmsPendingSkip =
+      skipPending && update.songId === skipPendingSongId;
+    void refreshCurrentTrackAfterSkip(update.songId, update.nextSongId).then(
+      () => {
+        if (confirmsPendingSkip) {
+          skipPending = false;
+          skipPendingSongId = null;
+          skipStatus.textContent = "Track skipped.";
+        }
+        updateSkipButton();
+      },
+      (error) => {
+        if (confirmsPendingSkip) {
+          skipPending = false;
+          skipPendingSongId = null;
+          skipStatus.textContent = error.message;
+        }
+        updateSkipButton();
+        console.error("Could not refresh playback after the track skip:", error);
+      },
+    );
+  });
+
+  events.addEventListener("error", () => {
+    if (skipPending) {
+      skipStatus.textContent =
+        "Waiting for the server to confirm the skip; reconnecting to playback events...";
+    }
+  });
+}
+
+async function initializePlayback() {
+  connectPlaybackEvents();
+
+  try {
+    const playback = await fetchPlayback();
+    renderCurrentPlayback(playback);
+    if (playback.mode === "LIVE") {
+      skipStatus.textContent = "Skipping is unavailable during a live broadcast.";
+    }
+  } catch (error) {
+    currentTrackTitle.textContent = "Unable to load current track";
+    skipStatus.textContent = error.message;
+    updateSkipButton();
+    console.error("Could not load current playback:", error);
+  }
+}
+
+async function requestTrackSkip() {
+  if (skipTrackButton.disabled) return;
+
+  const requestedSongId = currentPlaybackSong.id;
+  skipPending = true;
+  skipPendingSongId = requestedSongId;
+  skipStatus.textContent = "Queueing skip...";
+  updateSkipButton();
+
+  try {
+    await apiRequest("/api/playback/skip", { method: "POST" });
+    if (skipPending && skipPendingSongId === requestedSongId) {
+      skipStatus.textContent =
+        "Skip queued. The current track will remain until the server confirms the change.";
+    }
+  } catch (error) {
+    if (skipPending && skipPendingSongId === requestedSongId) {
+      skipPending = false;
+      skipPendingSongId = null;
+      skipStatus.textContent = error.message;
+    }
+    updateSkipButton();
+    console.error("Could not skip the current track:", error);
+  }
+}
+
+skipTrackButton.addEventListener("click", requestTrackSkip);
 
 function makeButton(label, className, action, options = {}) {
   const button = document.createElement("button");
@@ -728,6 +905,8 @@ async function startLiveBroadcast() {
 
 liveStartButton.addEventListener("click", startLiveBroadcast);
 liveStopButton.addEventListener("click", stopLiveBroadcast);
+
+void initializePlayback();
 
 window.addEventListener("pagehide", () => {
   if (liveBroadcastStarted) {

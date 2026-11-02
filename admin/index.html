@@ -70,6 +70,25 @@
         </div>
       </section>
 
+      <section class="panel" aria-labelledby="current-track-heading">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">ON AIR</p>
+            <h2 id="current-track-heading">Now playing</h2>
+          </div>
+        </div>
+        <div class="current-track-controls">
+          <div aria-live="polite">
+            <p class="track-title" id="current-track-title">Loading current track...</p>
+            <p class="track-artist" id="current-track-artist"></p>
+          </div>
+          <button class="button button-secondary" id="skip-track-button" type="button" disabled>
+            Skip track
+          </button>
+        </div>
+        <p class="live-status" id="skip-status" role="status" aria-live="polite"></p>
+      </section>
+
       <section class="panel" aria-labelledby="upload-title">
         <div class="panel-heading">
           <div>
