@@ -146,7 +146,10 @@ playButton.addEventListener("click", async () => {
       if (request !== playbackRequest) return;
       if (error.name === "AbortError" && audio.paused) return;
 
-      playerStatus.textContent = `Unable to play: ${error.message}`;
+      playerStatus.textContent =
+        error.name === "NotAllowedError"
+          ? "Autoplay was blocked — press play to listen."
+          : `Unable to play: ${error.message}`;
       console.error("Unable to play the radio stream:", error);
     }
   } else {
@@ -191,3 +194,7 @@ audio.addEventListener("error", () => {
   playButton.setAttribute("aria-label", "Play Afterburn Radio");
   playIcon.textContent = "▶";
 });
+
+if (new URLSearchParams(window.location.search).get("autostart") === "true") {
+  playButton.click();
+}
